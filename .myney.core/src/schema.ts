@@ -3,6 +3,13 @@ export type JoinMode = "owner-approved" | "open" | "invite";
 export type MemberRole = "owner" | "member";
 export type QuestStatus = "open" | "active" | "completed";
 export type InviteStatus = "active" | "used" | "revoked";
+export type MemoryEventKind = "conversation" | "memory-change" | "setup" | "quest" | "pair" | "handoff" | "todo" | "invite";
+export type TodoStatus = "open" | "done";
+
+export type LanguagePreferences = {
+  conversationLanguage: string;
+  codingLanguage: string;
+};
 
 export type PairRecord = {
   partner: string;
@@ -34,6 +41,7 @@ export type MemberMemory = {
   lastSession: string;
   sessionsCount: number;
   joinedVia: JoinMode | "owner" | "solo";
+  languagePreferences: LanguagePreferences;
   personalNotes: Array<{ at: string; note: string }>;
   createdAt: string;
   updatedAt: string;
@@ -87,10 +95,40 @@ export type AgentProtocol = {
   commandHint: string;
 };
 
+export type InstalledSkill = {
+  name: string;
+  trigger: string;
+  purpose: string;
+};
+
+export type RpgClassOption = {
+  name: string;
+  archetype: string;
+  codingFocus: string;
+  adventureStyle: string;
+};
+
 export type CommandProtocol = {
   command: string;
   file: string;
   purpose: string;
+};
+
+export type MemoryEvent = {
+  id: string;
+  at: string;
+  actor: string;
+  kind: MemoryEventKind;
+  summary: string;
+};
+
+export type TodoItem = {
+  id: string;
+  text: string;
+  status: TodoStatus;
+  owner: string | null;
+  createdAt: string;
+  completedAt: string | null;
 };
 
 export type LedgerEntry = {
@@ -109,6 +147,7 @@ export type MemoryCoreState = {
   joinMode: JoinMode | null;
   owner: string | null;
   activeMember: string | null;
+  defaultLanguagePreferences: LanguagePreferences;
   approvedMembers: string[];
   members: Record<string, MemberMemory>;
   invites: Record<string, Invite>;
@@ -117,9 +156,13 @@ export type MemoryCoreState = {
     open: string[];
     completed: string[];
   };
+  memoryJournal: MemoryEvent[];
+  todos: TodoItem[];
   ledger: LedgerEntry[];
   agents: AgentProtocol[];
   commands: CommandProtocol[];
+  installedSkills: InstalledSkill[];
+  rpgClasses: RpgClassOption[];
   createdAt: string;
   updatedAt: string;
 };
@@ -182,6 +225,117 @@ export const AGENTS: AgentProtocol[] = [
   }
 ];
 
+export const INSTALLED_SKILLS: InstalledSkill[] = [
+  {
+    name: "Language Protocol",
+    trigger: "/myney-setup",
+    purpose: "Sets conversation language and coding/adventure language per member."
+  },
+  {
+    name: "Memory Journal",
+    trigger: "/myney-memory",
+    purpose: "Logs every meaningful conversation, setup choice, or memory change into MYNEY.md."
+  },
+  {
+    name: "Todo Ledger",
+    trigger: "/myney-todo",
+    purpose: "Keeps open and completed todos so the core does not forget follow-ups."
+  },
+  {
+    name: "Quest Engine",
+    trigger: "/myney-quest",
+    purpose: "Turns coding work into RPG quests with XP, owner, and completion state."
+  },
+  {
+    name: "Party System",
+    trigger: "/myney-party",
+    purpose: "Tracks owner, active member, roster, pairings, blockers, and team mode."
+  },
+  {
+    name: "Pair Sync",
+    trigger: "/myney-pair",
+    purpose: "Maintains cross-consistent pair state between two members."
+  },
+  {
+    name: "Invite Gate",
+    trigger: "/myney-invite",
+    purpose: "Lets the owner control team activation with invite codes."
+  },
+  {
+    name: "Agent Protocols",
+    trigger: "/myney-agent",
+    purpose: "Lists and explains MYney, Lumina, Nara, Kaizen, Riven, Vega, and Echo."
+  },
+  {
+    name: "Integrity Check",
+    trigger: "/myney-check",
+    purpose: "Validates the single-file state, classes, skills, members, pairs, and todos."
+  }
+];
+
+export const RPG_CLASSES: RpgClassOption[] = [
+  {
+    name: "Necro Summoner",
+    archetype: "Legacy reviver",
+    codingFocus: "Resurrects dead modules, migrates old code, and summons helper agents/tests.",
+    adventureStyle: "Controls fallen systems and turns broken code into useful allies."
+  },
+  {
+    name: "Daemon Tamer",
+    archetype: "Service handler",
+    codingFocus: "Manages background jobs, queues, workers, dev servers, and long-running processes.",
+    adventureStyle: "Tames wild daemons and keeps async beasts obedient."
+  },
+  {
+    name: "Stack Paladin",
+    archetype: "Full-stack defender",
+    codingFocus: "Protects product flow across frontend, backend, database, and deployment.",
+    adventureStyle: "Carries the shield for end-to-end vertical slices."
+  },
+  {
+    name: "Schema Druid",
+    archetype: "Data shapeshifter",
+    codingFocus: "Designs schemas, migrations, validation, fixtures, and data lifecycle.",
+    adventureStyle: "Speaks to data roots and grows clean system structures."
+  },
+  {
+    name: "Cipher Rogue",
+    archetype: "Security infiltrator",
+    codingFocus: "Finds auth, crypto, API, and permission flaws before enemies do.",
+    adventureStyle: "Moves quietly through attack surfaces with sharp eyes."
+  },
+  {
+    name: "Compiler Monk",
+    archetype: "Type discipline master",
+    codingFocus: "Refines types, build checks, lint rules, and static correctness.",
+    adventureStyle: "Meditates until red squiggles submit."
+  },
+  {
+    name: "UI Illusionist",
+    archetype: "Interface spellcaster",
+    codingFocus: "Builds polished interactions, responsive layouts, states, and accessible UI.",
+    adventureStyle: "Turns raw flows into convincing user-facing magic."
+  },
+  {
+    name: "Infra Warlock",
+    archetype: "Deployment conjurer",
+    codingFocus: "Handles Docker, servers, CI, secrets, observability, and release rituals.",
+    adventureStyle: "Binds clouds, ports, logs, and machines into one pact."
+  },
+  {
+    name: "Test Ranger",
+    archetype: "Regression tracker",
+    codingFocus: "Creates tests, probes edge cases, and guards critical paths.",
+    adventureStyle: "Tracks bugs through forests of behavior until nothing escapes."
+  },
+  {
+    name: "Prompt Alchemist",
+    archetype: "AI logic crafter",
+    codingFocus: "Designs AI workflows, prompts, agent protocols, memory, and tool flows.",
+    adventureStyle: "Transmutes vague intent into reliable reasoning systems."
+  }
+];
+
 export const COMMANDS: CommandProtocol[] = [
   {
     command: "/myney-setup",
@@ -222,6 +376,21 @@ export const COMMANDS: CommandProtocol[] = [
     command: "/myney-agent",
     file: "agent.md",
     purpose: "List or inspect MYney local subagent protocols."
+  },
+  {
+    command: "/myney-skills",
+    file: "skills.md",
+    purpose: "List installed MYney skills and RPG coding class options."
+  },
+  {
+    command: "/myney-memory",
+    file: "memory.md",
+    purpose: "Log or list conversation and memory-change journal entries."
+  },
+  {
+    command: "/myney-todo",
+    file: "todo.md",
+    purpose: "Add, list, and complete persistent MemoryCore todos."
   },
   {
     command: "/myney-check",

@@ -39,7 +39,7 @@ describe("MYney workflow", () => {
   it("runs the acceptance flow from owner setup to party state", () => {
     run(root, ["setup", "--name", "Moon", "--codename", "moon", "--mode", "team", "--join-mode", "invite"]);
     run(root, ["invite", "create", "--actor", "moon", "--for", "ally", "--code", "ALLY-001"]);
-    run(root, ["setup", "--name", "Ally", "--codename", "ally", "--class", "Scout", "--invite", "ALLY-001"]);
+    run(root, ["setup", "--name", "Ally", "--codename", "ally", "--class", "Test Ranger", "--invite", "ALLY-001"]);
     run(root, ["quest", "add", "--actor", "moon", "--title", "Forge the first memory gate", "--id", "memory-gate", "--assignee", "ally", "--xp", "75"]);
     run(root, ["quest", "start", "memory-gate", "--actor", "ally"]);
     run(root, ["pair", "start", "--actor", "moon", "--partner", "ally", "--task", "Connect setup with quest state"]);
@@ -57,7 +57,7 @@ describe("MYney workflow", () => {
 
   it("keeps pair state cross-consistent and completes quests with XP", () => {
     run(root, ["setup", "--name", "Moon", "--codename", "moon", "--mode", "team", "--join-mode", "open"]);
-    run(root, ["setup", "--name", "Vega", "--codename", "vega", "--class", "Guardian"]);
+    run(root, ["setup", "--name", "Vega", "--codename", "vega", "--class", "Compiler Monk"]);
     run(root, ["quest", "add", "--actor", "moon", "--title", "Validate schemas", "--id", "schema-check", "--assignee", "vega", "--xp", "125"]);
     run(root, ["quest", "start", "schema-check", "--actor", "vega"]);
     run(root, ["pair", "start", "--actor", "moon", "--partner", "vega", "--task", "Schema validation"]);
@@ -99,5 +99,28 @@ describe("MYney workflow", () => {
     const show = run(root, ["command", "show", "setup"]);
     assert.match(show.stdout, /# \/myney-setup/);
     assert.match(show.stdout, /owner/);
+  });
+
+  it("lists installed skills, logs memory, and tracks todos", () => {
+    run(root, ["setup", "--name", "Moon", "--codename", "moon", "--mode", "solo", "--class", "Necro Summoner"]);
+    const skills = run(root, ["skills"]);
+    assert.match(skills.stdout, /Memory Journal/);
+    assert.match(skills.stdout, /Necro Summoner/);
+
+    const memory = run(root, ["memory", "add", "--actor", "moon", "--kind", "conversation", "--summary", "Discussed language setup"]);
+    assert.match(memory.stdout, /Memory logged/);
+
+    const todo = run(root, ["todo", "add", "--actor", "moon", "--text", "Review language setup"]);
+    assert.match(todo.stdout, /Todo added/);
+
+    const todos = run(root, ["todo", "list"]);
+    assert.match(todos.stdout, /Review language setup/);
+
+    const current = state<{ memoryJournal: unknown[]; todos: Array<{ id: string; status: string }> }>(root);
+    assert.ok(current.memoryJournal.length >= 2);
+    const addedTodo = current.todos.find((item) => item.status === "open" && item.id.startsWith("todo-"));
+    assert.ok(addedTodo);
+    const done = run(root, ["todo", "done", addedTodo.id, "--actor", "moon"]);
+    assert.match(done.stdout, /Todo completed/);
   });
 });

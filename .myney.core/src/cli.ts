@@ -1,9 +1,12 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import {
+  addMemoryEvent,
   addQuest,
+  addTodo,
   checkProject,
   completeQuest,
+  completeTodo,
   createInvite,
   endPair,
   handoff,
@@ -11,7 +14,10 @@ import {
   listAgents,
   listCommands,
   listInvites,
+  listMemoryEvents,
   listQuests,
+  listSkillsAndClasses,
+  listTodos,
   renderCheck,
   renderParty,
   renderWhoami,
@@ -90,6 +96,9 @@ function help(): string {
     "  invite create|list|revoke",
     "  agent list|show <name>",
     "  command list|show <name>",
+    "  skills",
+    "  memory add|list",
+    "  todo add|list|done",
     "  check"
   ].join("\n");
 }
@@ -109,7 +118,9 @@ async function main(): Promise<void> {
     const initialized = isInitialized(root);
     const name = await promptFor(flags, "name", initialized ? "Your display name?" : "Owner display name?");
     const codename = await promptFor(flags, "codename", initialized ? "Your codename?" : "Owner codename?");
-    const className = await promptFor(flags, "class", "RPG class?", initialized ? "Adventurer" : "Architect");
+    const className = await promptFor(flags, "class", "RPG coding class? (try: Necro Summoner, Stack Paladin, Prompt Alchemist)", "Prompt Alchemist");
+    const conversationLanguage = await promptFor(flags, "conversation-language", "Conversation language?", "Melayu");
+    const codingLanguage = await promptFor(flags, "coding-language", "Coding/adventure language?", "English");
     const mode = initialized ? undefined : await promptFor(flags, "mode", "Project mode (solo/team)?", "solo");
     const joinMode = !initialized && mode === "team"
       ? await promptFor(flags, "join-mode", "Join mode (owner-approved/open/invite)?", "owner-approved")
@@ -119,6 +130,8 @@ async function main(): Promise<void> {
       name,
       codename,
       className,
+      conversationLanguage,
+      codingLanguage,
       mode: mode as "solo" | "team" | undefined,
       joinMode: joinMode as "owner-approved" | "open" | "invite" | undefined,
       roster,
@@ -243,6 +256,48 @@ async function main(): Promise<void> {
     }
     if (subcommand === "show") {
       console.log(showCommand(root, positionals[2] || ""));
+      return;
+    }
+  }
+
+  if (command === "skills") {
+    console.log(listSkillsAndClasses(root));
+    return;
+  }
+
+  if (command === "memory") {
+    if (subcommand === "add") {
+      console.log(addMemoryEvent(root, {
+        actor: flag(flags, "actor"),
+        kind: flag(flags, "kind") as never,
+        summary: flag(flags, "summary") || ""
+      }));
+      return;
+    }
+    if (subcommand === "list") {
+      console.log(listMemoryEvents(root));
+      return;
+    }
+  }
+
+  if (command === "todo") {
+    if (subcommand === "add") {
+      console.log(addTodo(root, {
+        actor: flag(flags, "actor"),
+        owner: flag(flags, "owner"),
+        text: flag(flags, "text") || ""
+      }));
+      return;
+    }
+    if (subcommand === "list") {
+      console.log(listTodos(root));
+      return;
+    }
+    if (subcommand === "done") {
+      console.log(completeTodo(root, {
+        actor: flag(flags, "actor"),
+        id: positionals[2] || flag(flags, "id") || ""
+      }));
       return;
     }
   }

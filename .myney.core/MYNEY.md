@@ -45,20 +45,65 @@ When a user types a `/myney-*` command:
   "schemaVersion": 1,
   "project": "EmptyProject",
   "coreName": "MYney",
-  "initialized": false,
-  "mode": null,
+  "initialized": true,
+  "mode": "solo",
   "joinMode": null,
-  "owner": null,
-  "activeMember": null,
-  "approvedMembers": [],
-  "members": {},
+  "owner": "Moon",
+  "activeMember": "Moon",
+  "approvedMembers": ["Moon"],
+  "members": {
+    "Moon": {
+      "name": "Moon",
+      "codename": "Moon",
+      "class": "Summoner",
+      "level": 1,
+      "xp": 0,
+      "status": "online"
+    }
+  },
   "invites": {},
-  "quests": {},
+  "quests": {
+    "Q-001": {
+      "id": "Q-001",
+      "title": "The Summoner's Invitation",
+      "status": "completed",
+      "description": "Build a premium, mobile-responsive invitation web card with video intro and interactive 'Force-Accept' flow.",
+      "tasks": [
+        "[x] Create implementation plan",
+        "[x] Setup web structure (index.html)",
+        "[x] Define Neo-Brutalist design system (style.css)",
+        "[x] Implement video logic and transitions (script.js)",
+        "[x] Design and layout Invitation Details (Bento Grid)",
+        "[x] Final polish & mobile verification"
+      ],
+      "xp": 250,
+      "assignedTo": "Moon"
+    }
+  },
   "reminders": {
     "open": [],
     "completed": []
   },
-  "ledger": [],
+  "ledger": [
+    {
+      "timestamp": "2026-04-27T16:32:45+08:00",
+      "actor": "Nara",
+      "action": "setup",
+      "details": "Initialized MemoryCore for EmptyProject. Owner: Moon (Summoner). Mode: solo."
+    },
+    {
+      "timestamp": "2026-04-27T16:42:15+08:00",
+      "actor": "Kaizen",
+      "action": "quest_start",
+      "details": "Started quest Q-001: The Summoner's Invitation."
+    },
+    {
+      "timestamp": "2026-04-27T16:51:30+08:00",
+      "actor": "Riven",
+      "action": "quest_complete",
+      "details": "Completed quest Q-001: The Summoner's Invitation. Web card deployed locally."
+    }
+  ],
   "agents": [
     {
       "name": "MYney",
@@ -158,6 +203,6 @@ When a user types a `/myney-*` command:
     }
   ],
   "createdAt": "2026-04-27T15:39:27.958+08:00",
-  "updatedAt": "2026-04-27T15:39:27.960+08:00"
+  "updatedAt": "2026-04-27T16:32:45+08:00"
 }
 ```

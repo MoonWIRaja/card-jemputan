@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Summoner's Invitation</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Outfit:wght@700;900&family=JetBrains+Mono&display=swap" rel="stylesheet">
+</head>
+<body class="dark-mode">
+    <!-- Initial Overlay (if autoplay is blocked) -->
+    <div id="overlay" class="overlay">
+        <div class="glass-card bento-item">
+            <h1 class="display-title">INVITATION<br>SUMMONED</h1>
+            <button id="start-btn" class="brutal-btn primary-btn">OPEN SCROLL</button>
+        </div>
+    </div>
+
+    <!-- Video Background Container -->
+    <div id="video-container" class="video-container">
+        <video id="invitation-video" playsinline autoplay muted loop>
+            <source src="assets/copy_280D426C-51D5-4590-9626-E64B91A5D731.mov" type="video/quicktime">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+
+    <!-- Force Accept Action -->
+    <div id="action-section" class="action-section hidden">
+        <div class="brutal-card">
+            <h2 class="section-title">THE CHOICE IS YOURS</h2>
+            <p class="brutal-text">Presence is requested. Absence is not an option.</p>
+            <button id="accept-btn" class="brutal-btn danger-btn animate-pulse">I WILL BE THERE</button>
+        </div>
+    </div>
+
+    <!-- Invitation Details (Bento Grid) -->
+    <div id="details-section" class="details-section hidden">
+        <div class="bento-grid">
+            <!-- Header -->
+            <div class="bento-item header span-2">
+                <h1 class="display-title small">EVENT<br>DETAILS</h1>
+            </div>
+
+            <!-- Date -->
+            <div class="bento-item info-card">
+                <span class="label">DATE</span>
+                <span class="value">SATURDAY<br>MAY 24</span>
+            </div>
+
+            <!-- Time -->
+            <div class="bento-item info-card">
+                <span class="label">TIME</span>
+                <span class="value">20:00<br>GMT+8</span>
+            </div>
+
+            <!-- Location -->
+            <div class="bento-item location span-2">
+                <span class="label">LOCATION</span>
+                <span class="value highlight">THE CITADEL OF DREAMS</span>
+                <p class="sub-value">Floor 42, Neo-Cyberjaya Tower</p>
+                <button class="brutal-btn small secondary-btn">VIEW MAP</button>
+            </div>
+
+            <!-- RSVP Status -->
+            <div class="bento-item status span-2">
+                <div class="status-badge online">RSVP CONFIRMED</div>
+                <p class="mono-text">Welcome to the inner circle, Summoner Moon.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

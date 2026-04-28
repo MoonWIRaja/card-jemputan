@@ -35,15 +35,35 @@ describe("MYney setup", () => {
   });
 
   it("creates the owner during first solo setup", () => {
-    const result = run(root, ["setup", "--name", "Moon", "--codename", "moon", "--mode", "solo", "--class", "Architect"]);
+    const result = run(root, [
+      "setup",
+      "--name",
+      "Moon",
+      "--codename",
+      "moon",
+      "--mode",
+      "solo",
+      "--class",
+      "Necro Summoner",
+      "--conversation-language",
+      "Melayu",
+      "--coding-language",
+      "English"
+    ]);
     assert.equal(result.status, 0, result.stderr);
-    const memory = state<{ owner: string; mode: string; members: Record<string, { role: string; class: string }> }>(root);
+    const memory = state<{ owner: string; mode: string; defaultLanguagePreferences: { conversationLanguage: string; codingLanguage: string }; members: Record<string, { role: string; class: string; languagePreferences: { conversationLanguage: string; codingLanguage: string } }>; todos: unknown[]; memoryJournal: unknown[] }>(root);
     const member = memory.members.moon;
     assert.equal(memory.owner, "moon");
     assert.equal(memory.mode, "solo");
+    assert.equal(memory.defaultLanguagePreferences.conversationLanguage, "Melayu");
+    assert.equal(memory.defaultLanguagePreferences.codingLanguage, "English");
     assert.deepEqual(Object.keys(memory.members), ["moon"]);
     assert.equal(member.role, "owner");
-    assert.equal(member.class, "Architect");
+    assert.equal(member.class, "Necro Summoner");
+    assert.equal(member.languagePreferences.conversationLanguage, "Melayu");
+    assert.equal(member.languagePreferences.codingLanguage, "English");
+    assert.equal(memory.todos.length, 1);
+    assert.equal(memory.memoryJournal.length, 1);
   });
 
   it("rejects invalid codenames", () => {
@@ -54,7 +74,7 @@ describe("MYney setup", () => {
 
   it("supports open team member activation", () => {
     assert.equal(run(root, ["setup", "--name", "Moon", "--codename", "moon", "--mode", "team", "--join-mode", "open"]).status, 0);
-    const result = run(root, ["setup", "--name", "Alya", "--codename", "alya", "--class", "Scout"]);
+    const result = run(root, ["setup", "--name", "Alya", "--codename", "alya", "--class", "Schema Druid"]);
     assert.equal(result.status, 0, result.stderr);
     const memory = state<{ members: Record<string, unknown>; joinMode: string }>(root);
     assert.equal(memory.joinMode, "open");

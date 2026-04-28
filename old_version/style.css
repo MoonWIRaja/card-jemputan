@@ -1,0 +1,237 @@
+:root {
+    --bg: #0a0a0a;
+    --card-bg: #121212;
+    --primary: #00f0ff; /* Electric Blue */
+    --secondary: #ff003c; /* Vivid Red */
+    --text: #ffffff;
+    --text-muted: #888888;
+    --border: #ffffff;
+    --brutal-shadow: 6px 6px 0px 0px rgba(255, 255, 255, 1);
+    --primary-shadow: 6px 6px 0px 0px var(--primary);
+    --secondary-shadow: 6px 6px 0px 0px var(--secondary);
+    --radius: 0px; /* Brutalist sharp edges */
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.5;
+    overflow-x: hidden;
+    min-height: 100vh;
+}
+
+.dark-mode {
+    --bg: #050505;
+    --border: #ffffff;
+}
+
+/* Typography */
+.display-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 3.5rem;
+    font-weight: 900;
+    line-height: 0.9;
+    letter-spacing: -2px;
+    margin-bottom: 1.5rem;
+    text-transform: uppercase;
+}
+
+.display-title.small {
+    font-size: 2.5rem;
+}
+
+.mono-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--primary);
+    text-transform: uppercase;
+}
+
+/* Layout Containers */
+.overlay, .action-section, .details-section {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+    z-index: 10;
+    transition: opacity 0.5s ease, visibility 0.5s;
+    background: rgba(0, 0, 0, 0.4); /* Semi-transparent */
+    backdrop-filter: blur(4px);
+}
+
+.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* Video Background */
+.video-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    background: black;
+}
+
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Brutalist UI Elements */
+.brutal-card {
+    background: var(--card-bg);
+    border: 3px solid var(--border);
+    padding: 2.5rem;
+    box-shadow: var(--brutal-shadow);
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+}
+
+.glass-card {
+    background: rgba(18, 18, 18, 0.8);
+    backdrop-filter: blur(10px);
+    border: 3px solid var(--border);
+    padding: 2.5rem;
+    box-shadow: var(--primary-shadow);
+    text-align: center;
+}
+
+.brutal-btn {
+    display: inline-block;
+    padding: 1rem 2rem;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    text-decoration: none;
+    border: 3px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+    box-shadow: 4px 4px 0px 0px var(--border);
+}
+
+.brutal-btn:active {
+    transform: translate(4px, 4px);
+    box-shadow: 0px 0px 0px 0px var(--border);
+}
+
+.primary-btn {
+    background: var(--primary);
+    color: #000;
+    box-shadow: 4px 4px 0px 0px #000;
+}
+
+.danger-btn {
+    background: var(--secondary);
+    color: #fff;
+    box-shadow: 4px 4px 0px 0px #000;
+    font-size: 1.5rem;
+    width: 100%;
+    margin-top: 1.5rem;
+}
+
+.secondary-btn {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+}
+
+/* Bento Grid */
+.details-section {
+    justify-content: flex-start;
+    overflow-y: auto;
+    background: var(--bg);
+    padding-top: 4rem;
+}
+
+.bento-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 500px;
+}
+
+.bento-item {
+    background: var(--card-bg);
+    border: 3px solid var(--border);
+    padding: 1.5rem;
+    box-shadow: 4px 4px 0px 0px var(--border);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.span-2 {
+    grid-column: span 2;
+}
+
+.label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 900;
+    line-height: 1.1;
+}
+
+.value.highlight {
+    color: var(--primary);
+    font-size: 2rem;
+}
+
+.sub-value {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+}
+
+/* Animations */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.animate-pulse {
+    animation: pulse 1.5s infinite ease-in-out;
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 480px) {
+    .display-title {
+        font-size: 2.8rem;
+    }
+    .bento-grid {
+        gap: 1rem;
+    }
+    .brutal-card {
+        padding: 1.5rem;
+    }
+}

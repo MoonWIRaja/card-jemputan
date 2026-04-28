@@ -2,16 +2,21 @@ import { randomBytes } from "node:crypto";
 import {
   AGENTS,
   COMMANDS,
+  INSTALLED_SKILLS,
+  RPG_CLASSES,
   type CheckResult,
   type CommandProtocol,
   type Invite,
   type JoinMode,
   type LedgerEntry,
+  type MemoryEvent,
+  type MemoryEventKind,
   type MemoryCoreState,
   type MemberMemory,
   type PairRecord,
   type ProjectMode,
-  type Quest
+  type Quest,
+  type TodoItem
 } from "./schema.ts";
 import { corePath, ensureDir, exists, pathOf, readText, timestamp, writeText } from "./storage.ts";
 
@@ -19,6 +24,8 @@ export type SetupInput = {
   name: string;
   codename: string;
   className?: string;
+  conversationLanguage?: string;
+  codingLanguage?: string;
   mode?: ProjectMode;
   joinMode?: JoinMode;
   roster?: string[];
@@ -27,6 +34,9 @@ export type SetupInput = {
 
 const VALID_JOIN_MODES: JoinMode[] = ["owner-approved", "open", "invite"];
 const VALID_MODES: ProjectMode[] = ["solo", "team"];
+const DEFAULT_CONVERSATION_LANGUAGE = "Melayu";
+const DEFAULT_CODING_LANGUAGE = "English";
+const DEFAULT_RPG_CLASS = "Prompt Alchemist";
 const MEMORY_FILE = "MYNEY.md";
 const STATE_BLOCK = /```json myney-state\n([\s\S]*?)\n```/;
 
@@ -51,6 +61,20 @@ function slugify(input: string): string {
   return slug || "quest";
 }
 
+function nextId(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}-${randomBytes(2).toString("hex")}`;
+}
+
+function normalizeClassName(input?: string): string {
+  const requested = input?.trim() || DEFAULT_RPG_CLASS;
+  const match = RPG_CLASSES.find((option) => option.name.toLowerCase() === requested.toLowerCase());
+  if (!match) {
+    const choices = RPG_CLASSES.map((option) => option.name).join(", ");
+    throw new Error(`Invalid RPG class "${requested}". Choose one of: ${choices}.`);
+  }
+  return match.name;
+}
+
 function memoryPath(root: string): string {
   return corePath(root, MEMORY_FILE);
 }
@@ -66,6 +90,10 @@ function createEmptyState(): MemoryCoreState {
     joinMode: null,
     owner: null,
     activeMember: null,
+    defaultLanguagePreferences: {
+      conversationLanguage: DEFAULT_CONVERSATION_LANGUAGE,
+      codingLanguage: DEFAULT_CODING_LANGUAGE
+    },
     approvedMembers: [],
     members: {},
     invites: {},
@@ -74,16 +102,27 @@ function createEmptyState(): MemoryCoreState {
       open: [],
       completed: []
     },
+    memoryJournal: [],
+    todos: [],
     ledger: [],
     agents: AGENTS,
     commands: COMMANDS,
+    installedSkills: INSTALLED_SKILLS,
+    rpgClasses: RPG_CLASSES,
     createdAt: now,
     updatedAt: now
   };
 }
 
 function renderMemoryFile(state: MemoryCoreState): string {
-  const updatedState = { ...state, updatedAt: timestamp(), agents: AGENTS, commands: COMMANDS };
+  const updatedState = {
+    ...state,
+    updatedAt: timestamp(),
+    agents: AGENTS,
+    commands: COMMANDS,
+    installedSkills: INSTALLED_SKILLS,
+    rpgClasses: RPG_CLASSES
+  };
   return `# MYney MemoryCore
 
 This is the single source of truth for EmptyProject's MYney RPG MemoryCore.
@@ -96,9 +135,31 @@ entries live here.
 
 ${COMMANDS.map((command) => `- \`${command.command}\` - ${command.purpose}`).join("\n")}
 
+## Language Protocol
+
+- Default conversation language: **${updatedState.defaultLanguagePreferences.conversationLanguage}**.
+- Default coding/adventure language: **${updatedState.defaultLanguagePreferences.codingLanguage}**.
+- Members may override both during \`/myney-setup\`.
+- Conversation language controls normal chat.
+- Coding/adventure language controls code, technical names, quest wording, classes, and RPG flavor.
+
 ## Agents
 
 ${AGENTS.map((agent) => `- **${agent.name}** (${agent.title}) - ${agent.purpose}`).join("\n")}
+
+## Installed Skills
+
+${INSTALLED_SKILLS.map((skill) => `- **${skill.name}** (\`${skill.trigger}\`) - ${skill.purpose}`).join("\n")}
+
+## RPG Coding Classes
+
+${RPG_CLASSES.map((option) => `- **${option.name}** - ${option.codingFocus}`).join("\n")}
+
+## Memory Discipline
+
+- At the start or end of every meaningful conversation, add a \`memoryJournal\` entry.
+- Any setup choice, memory change, todo change, quest update, invite, pair, or handoff must write both memory state and ledger where relevant.
+- Todos live in \`todos[]\`; do not rely on chat history for follow-ups.
 
 ## Command Protocol
 
@@ -126,9 +187,28 @@ function parseState(content: string): MemoryCoreState {
   return JSON.parse(match[1]) as MemoryCoreState;
 }
 
+function migrateState(state: MemoryCoreState): MemoryCoreState {
+  const fallback = createEmptyState();
+  state.defaultLanguagePreferences ||= fallback.defaultLanguagePreferences;
+  state.memoryJournal ||= [];
+  state.todos ||= [];
+  state.installedSkills = INSTALLED_SKILLS;
+  state.rpgClasses = RPG_CLASSES;
+  state.agents = AGENTS;
+  state.commands = COMMANDS;
+  state.reminders ||= { open: [], completed: [] };
+  state.ledger ||= [];
+  state.members ||= {};
+  for (const member of Object.values(state.members)) {
+    member.languagePreferences ||= state.defaultLanguagePreferences;
+    member.class = normalizeClassName(member.class);
+  }
+  return state;
+}
+
 function loadState(root: string): MemoryCoreState {
   ensureCoreSkeleton(root);
-  return parseState(readText(memoryPath(root)));
+  return migrateState(parseState(readText(memoryPath(root))));
 }
 
 function saveState(root: string, state: MemoryCoreState): void {
@@ -148,6 +228,8 @@ function createMember(input: {
   codename: string;
   role: "owner" | "member";
   className?: string;
+  conversationLanguage?: string;
+  codingLanguage?: string;
   joinedVia: MemberMemory["joinedVia"];
 }): MemberMemory {
   const now = timestamp();
@@ -155,7 +237,7 @@ function createMember(input: {
     name: input.name.trim(),
     codename: input.codename,
     role: input.role,
-    class: input.className?.trim() || (input.role === "owner" ? "Architect" : "Adventurer"),
+    class: normalizeClassName(input.className),
     level: 1,
     xp: 0,
     currentQuest: null,
@@ -167,6 +249,10 @@ function createMember(input: {
     lastSession: now,
     sessionsCount: 1,
     joinedVia: input.joinedVia,
+    languagePreferences: {
+      conversationLanguage: input.conversationLanguage?.trim() || DEFAULT_CONVERSATION_LANGUAGE,
+      codingLanguage: input.codingLanguage?.trim() || DEFAULT_CODING_LANGUAGE
+    },
     personalNotes: [],
     createdAt: now,
     updatedAt: now
@@ -193,6 +279,25 @@ function addLedger(state: MemoryCoreState, kind: string, actor: string, message:
   return entry;
 }
 
+function addMemory(state: MemoryCoreState, actor: string, kind: MemoryEventKind, summary: string): MemoryEvent {
+  const event = { id: nextId("mem"), at: timestamp(), actor, kind, summary };
+  state.memoryJournal.push(event);
+  return event;
+}
+
+function addTodoItem(state: MemoryCoreState, text: string, owner?: string | null): TodoItem {
+  const todo = {
+    id: nextId("todo"),
+    text: text.trim(),
+    status: "open" as const,
+    owner: owner || null,
+    createdAt: timestamp(),
+    completedAt: null
+  };
+  state.todos.push(todo);
+  return todo;
+}
+
 export function isInitialized(root: string): boolean {
   if (!exists(memoryPath(root))) {
     return false;
@@ -205,6 +310,14 @@ export function ensureCoreSkeleton(root: string): void {
   const file = memoryPath(root);
   if (!exists(file)) {
     writeText(file, renderMemoryFile(createEmptyState()));
+    return;
+  }
+  try {
+    const migrated = migrateState(parseState(readText(file)));
+    writeText(file, renderMemoryFile(migrated));
+  } catch (error) {
+    console.error(error);
+    // Leave malformed files untouched so /myney-check can report the parse error.
   }
 }
 
@@ -249,9 +362,14 @@ function initializeProject(root: string, state: MemoryCoreState, input: SetupInp
     codename: owner,
     role: "owner",
     className: input.className,
+    conversationLanguage: input.conversationLanguage,
+    codingLanguage: input.codingLanguage,
     joinedVia: mode === "solo" ? "solo" : "owner"
   }));
+  state.defaultLanguagePreferences = state.members[owner].languagePreferences;
   addLedger(state, "OWNER", owner, `Initialized ${mode} MemoryCore with join mode ${joinMode}.`);
+  addMemory(state, owner, "setup", `Owner setup completed. Conversation language: ${state.defaultLanguagePreferences.conversationLanguage}. Coding/adventure language: ${state.defaultLanguagePreferences.codingLanguage}. Class: ${state.members[owner].class}.`);
+  addTodoItem(state, "Review MYney setup choices after first real session.", owner);
   saveState(root, state);
   return `MYney initialized. Owner ${state.members[owner].name} (${owner}) is active.`;
 }
@@ -261,8 +379,12 @@ function activateMember(root: string, state: MemoryCoreState, input: SetupInput 
   if (existing) {
     existing.lastSession = timestamp();
     existing.sessionsCount += 1;
+    if (input.conversationLanguage) existing.languagePreferences.conversationLanguage = input.conversationLanguage;
+    if (input.codingLanguage) existing.languagePreferences.codingLanguage = input.codingLanguage;
+    if (input.className) existing.class = normalizeClassName(input.className);
     saveMember(state, existing);
     state.activeMember = existing.codename;
+    addMemory(state, existing.codename, "setup", `Returning member activated. Conversation language: ${existing.languagePreferences.conversationLanguage}. Coding/adventure language: ${existing.languagePreferences.codingLanguage}. Class: ${existing.class}.`);
     saveState(root, state);
     return `Welcome back, ${existing.name}. Active member: ${existing.codename}.`;
   }
@@ -297,6 +419,8 @@ function activateMember(root: string, state: MemoryCoreState, input: SetupInput 
     codename: input.codename,
     role: "member",
     className: input.className,
+    conversationLanguage: input.conversationLanguage || state.defaultLanguagePreferences.conversationLanguage,
+    codingLanguage: input.codingLanguage || state.defaultLanguagePreferences.codingLanguage,
     joinedVia
   });
   saveMember(state, member);
@@ -306,6 +430,7 @@ function activateMember(root: string, state: MemoryCoreState, input: SetupInput 
     state.approvedMembers.sort();
   }
   addLedger(state, "JOIN", member.codename, `Joined via ${joinedVia}.`);
+  addMemory(state, member.codename, "setup", `Member activated via ${joinedVia}. Conversation language: ${member.languagePreferences.conversationLanguage}. Coding/adventure language: ${member.languagePreferences.codingLanguage}. Class: ${member.class}.`);
   saveState(root, state);
   return `Member ${member.name} (${member.codename}) activated via ${joinedVia}.`;
 }
@@ -321,6 +446,8 @@ export function renderWhoami(root: string, actor?: string): string {
     `${member.name} (${member.codename})`,
     `Role: ${member.role}`,
     `Class: ${member.class}`,
+    `Conversation language: ${member.languagePreferences.conversationLanguage}`,
+    `Coding/adventure language: ${member.languagePreferences.codingLanguage}`,
     `Level: ${member.level}`,
     `XP: ${member.xp}`,
     `Session: #${member.sessionsCount}`,
@@ -351,7 +478,7 @@ export function renderParty(root: string): string {
     const pair = member.activePair ? ` pair:${member.activePair.partner}` : "";
     const blocker = member.lastBlocker ? ` blocker:${member.lastBlocker}` : "";
     const quest = member.currentQuest ? ` quest:${member.currentQuest}` : "";
-    lines.push(`- ${member.codename} (${member.name}) class:${member.class} level:${member.level}${quest}${pair}${blocker}`);
+    lines.push(`- ${member.codename} (${member.name}) class:${member.class} chat:${member.languagePreferences.conversationLanguage} code:${member.languagePreferences.codingLanguage} level:${member.level}${quest}${pair}${blocker}`);
   }
   return lines.join("\n");
 }
@@ -406,6 +533,7 @@ export function addQuest(root: string, input: {
   };
   saveQuest(state, quest);
   addLedger(state, "QUEST", actor.codename, `Added ${quest.id}: ${quest.title}.`);
+  addMemory(state, actor.codename, "quest", `Quest added: ${quest.id} - ${quest.title}.`);
   saveState(root, state);
   return `Quest added: ${quest.id}`;
 }
@@ -436,6 +564,7 @@ export function startQuest(root: string, id: string, actorName?: string): string
   assignee.currentQuest = quest.id;
   saveMember(state, assignee);
   addLedger(state, "QUEST", actor.codename, `Started ${quest.id}.`);
+  addMemory(state, actor.codename, "quest", `Quest started: ${quest.id}.`);
   saveState(root, state);
   return `Quest started: ${quest.id}`;
 }
@@ -458,6 +587,7 @@ export function completeQuest(root: string, id: string, actorName?: string): str
   assignee.inventory.push(`Quest clear: ${quest.title}`);
   saveMember(state, assignee);
   addLedger(state, "QUEST", actor.codename, `Completed ${quest.id}; ${assignee.codename} gained ${quest.xp} XP.`);
+  addMemory(state, actor.codename, "quest", `Quest completed: ${quest.id}; ${assignee.codename} gained ${quest.xp} XP.`);
   saveState(root, state);
   return `Quest completed: ${quest.id}`;
 }
@@ -483,6 +613,7 @@ export function startPair(root: string, input: { actor?: string; partner: string
   saveMember(state, actor);
   saveMember(state, partner);
   addLedger(state, "PAIR", actor.codename, `${actor.codename} + ${partner.codename}: ${input.task.trim()}.`);
+  addMemory(state, actor.codename, "pair", `Pair started with ${partner.codename}: ${input.task.trim()}.`);
   saveState(root, state);
   return `Pair started: ${actor.codename} + ${partner.codename}`;
 }
@@ -510,6 +641,7 @@ export function updatePair(root: string, input: { actor?: string; task?: string;
   saveMember(state, actor);
   saveMember(state, partner);
   addLedger(state, "PAIR", actor.codename, `Update with ${partner.codename}: ${summary.trim()}.`);
+  addMemory(state, actor.codename, "pair", `Pair updated with ${partner.codename}: ${summary.trim()}.`);
   saveState(root, state);
   return `Pair updated: ${actor.codename} + ${partner.codename}`;
 }
@@ -526,6 +658,7 @@ export function endPair(root: string, input: { actor?: string; summary: string }
   saveMember(state, actor);
   saveMember(state, partner);
   addLedger(state, "PAIR", actor.codename, `Closed pair with ${partnerName}. Summary: ${input.summary || "none"}.`);
+  addMemory(state, actor.codename, "pair", `Pair closed with ${partnerName}. Summary: ${input.summary || "none"}.`);
   saveState(root, state);
   return `Pair ended: ${actor.codename} + ${partnerName}`;
 }
@@ -548,6 +681,8 @@ export function handoff(root: string, input: {
   actor.lastBlocker = blocker;
   saveMember(state, actor);
   addLedger(state, blocker ? "BLOCKER" : "HANDOFF", actor.codename, `Finished: ${input.finished.trim()}. Next: ${input.nextAction.trim()}.`);
+  addMemory(state, actor.codename, "handoff", `Handoff saved. Finished: ${input.finished.trim()}. Next: ${input.nextAction.trim()}.`);
+  addTodoItem(state, input.nextAction.trim(), actor.codename);
   saveState(root, state);
   return `Handoff saved for ${actor.codename}.`;
 }
@@ -589,6 +724,7 @@ export function createInvite(root: string, input: { actor?: string; code?: strin
   };
   state.invites[code] = invite;
   addLedger(state, "INVITE", actor.codename, `Created invite ${code}${invite.codename ? ` for ${invite.codename}` : ""}.`);
+  addMemory(state, actor.codename, "invite", `Invite created: ${code}${invite.codename ? ` for ${invite.codename}` : ""}.`);
   saveState(root, state);
   return `Invite created: ${code}`;
 }
@@ -614,6 +750,7 @@ export function revokeInvite(root: string, input: { actor?: string; code: string
   invite.status = "revoked";
   invite.revokedAt = timestamp();
   addLedger(state, "INVITE", actor.codename, `Revoked invite ${invite.code}.`);
+  addMemory(state, actor.codename, "invite", `Invite revoked: ${invite.code}.`);
   saveState(root, state);
   return `Invite revoked: ${invite.code}`;
 }
@@ -647,6 +784,78 @@ export function showCommand(root: string, name: string): string {
   return `# ${target.command}\n\n## Purpose\n${target.purpose}\n\n## Source Of Truth\nAll command behavior and state live in \`${MEMORY_FILE}\`.\n`;
 }
 
+export function listSkillsAndClasses(root: string): string {
+  ensureCoreSkeleton(root);
+  const skillLines = INSTALLED_SKILLS.map((skill) => `- ${skill.name} (${skill.trigger}): ${skill.purpose}`);
+  const classLines = RPG_CLASSES.map((option) => `- ${option.name}: ${option.codingFocus}`);
+  return ["Installed skills:", ...skillLines, "", "RPG coding classes:", ...classLines].join("\n");
+}
+
+export function addMemoryEvent(root: string, input: { actor?: string; kind?: MemoryEventKind; summary: string }): string {
+  const { state, member } = resolveActor(root, input.actor);
+  if (!input.summary?.trim()) {
+    throw new Error("Memory summary is required.");
+  }
+  const kind = input.kind || "conversation";
+  const event = addMemory(state, member.codename, kind, input.summary.trim());
+  addLedger(state, "MEMORY", member.codename, `${kind}: ${input.summary.trim()}`);
+  saveState(root, state);
+  return `Memory logged: ${event.id}`;
+}
+
+export function listMemoryEvents(root: string): string {
+  ensureCoreSkeleton(root);
+  const state = loadState(root);
+  if (state.memoryJournal.length === 0) {
+    return "No memory journal entries yet.";
+  }
+  return state.memoryJournal
+    .slice(-20)
+    .map((event) => `- ${event.id} [${event.kind}] ${event.actor}: ${event.summary}`)
+    .join("\n");
+}
+
+export function addTodo(root: string, input: { actor?: string; text: string; owner?: string }): string {
+  const { state, member } = resolveActor(root, input.actor);
+  if (!input.text?.trim()) {
+    throw new Error("Todo text is required.");
+  }
+  const owner = input.owner ? assertCodename(input.owner) : member.codename;
+  if (owner && !state.members[owner]) {
+    throw new Error(`Unknown todo owner "${owner}".`);
+  }
+  const todo = addTodoItem(state, input.text, owner);
+  addMemory(state, member.codename, "todo", `Todo added: ${todo.text}.`);
+  addLedger(state, "TODO", member.codename, `Added ${todo.id}: ${todo.text}.`);
+  saveState(root, state);
+  return `Todo added: ${todo.id}`;
+}
+
+export function listTodos(root: string): string {
+  ensureCoreSkeleton(root);
+  const state = loadState(root);
+  if (state.todos.length === 0) {
+    return "No todos yet.";
+  }
+  return state.todos
+    .map((todo) => `- ${todo.id} [${todo.status}] ${todo.text} -> ${todo.owner || "unassigned"}`)
+    .join("\n");
+}
+
+export function completeTodo(root: string, input: { actor?: string; id: string }): string {
+  const { state, member } = resolveActor(root, input.actor);
+  const todo = state.todos.find((item) => item.id === input.id);
+  if (!todo) {
+    throw new Error(`Unknown todo "${input.id}".`);
+  }
+  todo.status = "done";
+  todo.completedAt = timestamp();
+  addMemory(state, member.codename, "todo", `Todo completed: ${todo.text}.`);
+  addLedger(state, "TODO", member.codename, `Completed ${todo.id}: ${todo.text}.`);
+  saveState(root, state);
+  return `Todo completed: ${todo.id}`;
+}
+
 export function checkProject(root: string): CheckResult {
   const failures: string[] = [];
   const warnings: string[] = [];
@@ -658,7 +867,7 @@ export function checkProject(root: string): CheckResult {
 
   let state: MemoryCoreState;
   try {
-    state = parseState(readText(file));
+    state = migrateState(parseState(readText(file)));
   } catch (error) {
     failures.push(error instanceof Error ? error.message : String(error));
     return { ok: false, failures, warnings };
@@ -677,6 +886,18 @@ export function checkProject(root: string): CheckResult {
       failures.push(`Missing agent ${agent.name} in state.`);
     }
   }
+  for (const skill of INSTALLED_SKILLS) {
+    if (!state.installedSkills.some((item) => item.name === skill.name)) {
+      failures.push(`Missing installed skill ${skill.name} in state.`);
+    }
+  }
+  for (const option of RPG_CLASSES) {
+    if (!state.rpgClasses.some((item) => item.name === option.name)) {
+      failures.push(`Missing RPG class ${option.name} in state.`);
+    }
+  }
+  if (!state.defaultLanguagePreferences?.conversationLanguage) failures.push("Missing default conversation language.");
+  if (!state.defaultLanguagePreferences?.codingLanguage) failures.push("Missing default coding/adventure language.");
 
   if (!state.initialized) {
     warnings.push("MYney is not initialized yet. Type /myney-setup to create the owner.");
@@ -691,8 +912,11 @@ export function checkProject(root: string): CheckResult {
   if (state.activeMember && !state.members[state.activeMember]) failures.push("Active member has no member record.");
   for (const [codename, member] of Object.entries(state.members)) {
     if (member.codename !== codename) failures.push(`Member key ${codename} does not match member codename ${member.codename}.`);
+    if (!member.languagePreferences?.conversationLanguage) failures.push(`${member.codename} has no conversation language.`);
+    if (!member.languagePreferences?.codingLanguage) failures.push(`${member.codename} has no coding/adventure language.`);
     try {
       assertCodename(member.codename);
+      normalizeClassName(member.class);
     } catch (error) {
       failures.push(error instanceof Error ? error.message : String(error));
     }
@@ -706,6 +930,10 @@ export function checkProject(root: string): CheckResult {
         failures.push(`${member.codename} pair task differs from ${partner.codename}.`);
       }
     }
+  }
+  for (const todo of state.todos) {
+    if (!todo.id || !todo.text) failures.push("Todo item is missing id or text.");
+    if (!["open", "done"].includes(todo.status)) failures.push(`Todo ${todo.id} has invalid status ${todo.status}.`);
   }
 
   if (!exists(pathOf(root, "setup.md"))) warnings.push("setup.md is missing from repo root.");
